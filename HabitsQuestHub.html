@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HabitsQuest Hub - Communauté</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #030712; 
+            color: #f3f4f6;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0, transparent 50%), 
+                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.1) 0, transparent 50%);
+            min-height: 100vh;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .accent-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+        .tab-active { border-bottom: 2px solid #6366f1; color: #6366f1; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #030712; }
+        ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
+
+        @media (max-width: 640px) {
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-12">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 md:mb-12">
+            <div class="flex justify-between items-center w-full md:w-auto">
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">HabitsQuest</h1>
+                    <p id="tagline" class="text-slate-400 text-xs md:text-base font-medium" data-i18n="tagline">L'espace de création de la communauté</p>
+                </div>
+                <div class="flex md:hidden gap-1 p-1 bg-slate-900/50 rounded-xl border border-white/5 h-fit">
+                    <button onclick="setLanguage('fr')" id="lang-fr-mobile" class="px-2 py-1 rounded-lg text-[10px] font-bold transition-all">FR</button>
+                    <button onclick="setLanguage('en')" id="lang-en-mobile" class="px-2 py-1 rounded-lg text-[10px] font-bold transition-all">EN</button>
+                </div>
+            </div>
+            <div class="flex items-center justify-between w-full md:w-auto gap-6">
+                <nav class="flex space-x-6 md:space-x-8 text-xs md:text-sm font-bold uppercase tracking-widest text-slate-500">
+                    <button onclick="switchTab('library')" id="btn-library" class="pb-2 tab-active transition-all" data-i18n="nav_library">Bibliothèque</button>
+                    <button onclick="switchTab('create')" id="btn-create" class="pb-2 hover:text-slate-300 transition-all" data-i18n="nav_create">Créer un Pack</button>
+                </nav>
+                <div class="hidden md:flex gap-2 p-1 bg-slate-900/50 rounded-xl border border-white/5">
+                    <button onclick="setLanguage('fr')" id="lang-fr" class="px-3 py-1 rounded-lg text-xs font-bold transition-all">FR</button>
+                    <button onclick="setLanguage('en')" id="lang-en" class="px-3 py-1 rounded-lg text-xs font-bold transition-all">EN</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Section Bibliothèque -->
+        <section id="section-library" class="space-y-6 md:space-y-8">
+            <!-- Barre de Filtres -->
+            <div class="glass p-4 md:p-6 rounded-2xl md:rounded-3xl flex flex-col md:flex-row gap-3 md:gap-4 items-center">
+                <div class="relative flex-1 w-full">
+                    <input type="text" id="search-bar" oninput="filterLibrary()" data-i18n-placeholder="search_placeholder" placeholder="Rechercher un thème, un titre..." class="w-full bg-slate-900/50 border border-white/5 p-3 md:p-4 pl-10 md:pl-12 rounded-xl md:rounded-2xl outline-none focus:border-indigo-500/50 transition text-sm">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 opacity-30 text-sm">🔍</span>
+                </div>
+                <div class="flex gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 md:pb-0">
+                    <select id="filter-type" onchange="updateDynamicFilters(); filterLibrary();" class="bg-slate-900 border border-white/5 p-3 md:p-4 rounded-xl md:rounded-2xl outline-none text-xs md:text-sm font-semibold whitespace-nowrap">
+                        <option value="all" data-i18n="filter_all_types">Tous les types</option>
+                        <option value="quiz" data-i18n="filter_quiz">🧩 Quiz</option>
+                        <option value="poem" data-i18n="filter_poem">📜 Poèmes</option>
+                        <option value="list" data-i18n="filter_list">📋 Listes</option>
+                    </select>
+                    <div id="dynamic-filter-container" class="flex gap-2">
+                        <!-- Rendu par JS -->
+                    </div>
+                    <select id="filter-lang" onchange="filterLibrary()" class="bg-slate-900 border border-white/5 p-3 md:p-4 rounded-xl md:rounded-2xl outline-none text-xs md:text-sm font-semibold whitespace-nowrap">
+                        <option value="all" data-i18n="filter_all_langs">Toutes Langues</option>
+                        <option value="fr">🇫🇷 FR</option>
+                        <option value="en">🇺🇸 EN</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="library-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                <!-- Les cartes seront injectées ici -->
+            </div>
+        </section>
+
+        <!-- Section Création -->
+        <section id="section-create" class="hidden">
+            <div class="max-w-3xl mx-auto glass p-8 md:p-12 rounded-[2.5rem] shadow-2xl shadow-indigo-500/5">
+                <h2 class="text-2xl font-bold mb-8 flex items-center gap-3">
+                    <span class="p-2 rounded-xl accent-gradient text-white text-sm">✨</span>
+                    <span data-i18n="create_title">Nouveau contenu</span>
+                </h2>
+
+                <div class="space-y-8">
+                    <!-- Switch Type -->
+                    <div class="grid grid-cols-3 gap-2 p-1 bg-slate-900/50 rounded-2xl border border-white/5">
+                        <button onclick="setCreateType('quiz')" id="cr-quiz" class="py-3 rounded-xl text-sm font-bold bg-indigo-500 text-white shadow-lg transition-all" data-i18n="type_quiz">Quiz</button>
+                        <button onclick="setCreateType('poem')" id="cr-poem" class="py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-white transition-all" data-i18n="type_poem">Poème</button>
+                        <button onclick="setCreateType('list')" id="cr-list" class="py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-white transition-all" data-i18n="type_list">Liste</button>
+                    </div>
+
+                    <!-- Meta Data -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1" data-i18n="label_title">Thème / Titre</label>
+                            <input type="text" id="in-title" data-i18n-placeholder="placeholder_title" placeholder="Ex: Capitales du Monde" class="w-full bg-slate-900/50 border border-white/10 p-4 rounded-2xl outline-none focus:border-indigo-500 transition">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1" data-i18n="label_author">Auteur</label>
+                            <input type="text" id="in-author" data-i18n-placeholder="placeholder_author" placeholder="Votre nom" class="w-full bg-slate-900/50 border border-white/10 p-4 rounded-2xl outline-none focus:border-indigo-500 transition">
+                        </div>
+                        <div class="space-y-2" id="div-category">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1" data-i18n="label_category">Catégorie</label>
+                            <input type="text" id="in-category" data-i18n-placeholder="placeholder_category" placeholder="Ex: Histoire, Géographie..." class="w-full bg-slate-900/50 border border-white/10 p-4 rounded-2xl outline-none focus:border-indigo-500 transition">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1" data-i18n="label_lang">Langue</label>
+                            <select id="in-lang" class="w-full bg-slate-900/50 border border-white/10 p-4 rounded-2xl outline-none focus:border-indigo-500 transition">
+                                <option value="fr" data-i18n="lang_fr">Français 🇫🇷</option>
+                                <option value="en" data-i18n="lang_en">Anglais 🇺🇸</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Champs Dynamiques -->
+                    <div id="dynamic-fields" class="space-y-4">
+                        <!-- Rendu par JS -->
+                    </div>
+
+                    <div class="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button onclick="generateHQuest()" class="w-full py-5 rounded-2xl bg-white/5 border border-white/10 text-white font-bold text-lg hover:bg-white/10 transition-all" data-i18n="btn_download">
+                            💾 Télécharger .hquest
+                        </button>
+                        <button onclick="publishToSupabase()" id="btn-publish" class="w-full py-5 rounded-2xl accent-gradient text-white font-black text-lg shadow-xl shadow-indigo-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all" data-i18n="btn_publish">
+                            🚀 Publier dans le Hub
+                        </button>
+                    </div>
+                    <p class="text-center text-slate-500 text-xs mt-4" data-i18n="publish_disclaimer">En publiant, votre contenu sera visible par toute la communauté.</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // --- LOCALISATION ---
+        const translations = {
+            fr: {
+                tagline: "L'espace de création de la communauté",
+                nav_library: "Bibliothèque",
+                nav_create: "Créer un Pack",
+                search_placeholder: "Rechercher un thème, un titre...",
+                filter_all_types: "Tous les types",
+                filter_quiz: "🧩 Quiz",
+                filter_poem: "📜 Poèmes",
+                filter_list: "📋 Listes",
+                filter_all_langs: "Toutes Langues",
+                create_title: "Nouveau contenu",
+                type_quiz: "Quiz",
+                type_poem: "Poème",
+                type_list: "Liste",
+                label_title: "Thème / Titre",
+                placeholder_title: "Ex: Capitales du Monde",
+                label_author: "Auteur",
+                placeholder_author: "Votre nom",
+                label_category: "Catégorie",
+                placeholder_category: "Ex: Histoire, Géographie...",
+                label_lang: "Langue",
+                lang_fr: "Français 🇫🇷",
+                lang_en: "Anglais 🇺🇸",
+                btn_download: "💾 Télécharger .hquest",
+                btn_publish: "🚀 Publier dans le Hub",
+                publish_disclaimer: "En publiant, votre contenu sera visible par toute la communauté.",
+                label_questions: "Questions",
+                placeholder_question: "Question",
+                placeholder_answer: "Réponse",
+                add_question: "+ Ajouter une question",
+                label_poem_text: "Le poème (mots entre [ ])",
+                placeholder_poem: "Ex: Demain, dès l'aube, à l'heure où blanchit la [campagne]...",
+                label_intro: "Question d'introduction",
+                placeholder_intro: "Ex: Citez les planètes du système solaire",
+                label_ordered: "Liste ordonnée",
+                ordered_desc: "L'ordre des réponses est obligatoire.",
+                label_answers: "Réponses (une par ligne)",
+                placeholder_answers: "Ex:\nMercure\nVénus...",
+                download_btn_card: "Télécharger .hquest",
+                by_author: "Par",
+                empty_library: "Aucun contenu ne correspond.",
+                error_supabase: "Configuration Supabase manquante.",
+                error_load: "Impossible de charger la bibliothèque.",
+                error_publish_disabled: "❌ Publication désactivée (Supabase non configuré).",
+                pub_loading: "⏳ Publication...",
+                pub_success: "🎉 Contenu publié !",
+                alert_no_q: "Ajoutez au moins une question.",
+                alert_no_poem: "Le poème est vide.",
+                alert_no_ans: "Ajoutez au moins une réponse.",
+                cat_poetry: "Poésie",
+                cat_general: "Général",
+                untitled: "Sans titre",
+                anonymous: "Anonyme",
+                filter_authors: "Auteurs",
+                filter_categories: "Catégories",
+                filter_all_dynamic: "Tous"
+            },
+            en: {
+                tagline: "Community creation space",
+                nav_library: "Library",
+                nav_create: "Create Pack",
+                search_placeholder: "Search theme, title...",
+                filter_all_types: "All types",
+                filter_quiz: "🧩 Quiz",
+                filter_poem: "📜 Poems",
+                filter_list: "📋 Lists",
+                filter_all_langs: "All Languages",
+                create_title: "New Content",
+                type_quiz: "Quiz",
+                type_poem: "Poem",
+                type_list: "List",
+                label_title: "Theme / Title",
+                placeholder_title: "e.g. World Capitals",
+                label_author: "Author",
+                placeholder_author: "Your name",
+                label_category: "Category",
+                placeholder_category: "e.g. History, Geography...",
+                label_lang: "Language",
+                lang_fr: "French 🇫🇷",
+                lang_en: "English 🇺🇸",
+                btn_download: "💾 Download .hquest",
+                btn_publish: "🚀 Publish to Hub",
+                publish_disclaimer: "By publishing, your content will be visible to the community.",
+                label_questions: "Questions",
+                placeholder_question: "Question",
+                placeholder_answer: "Answer",
+                add_question: "+ Add a question",
+                label_poem_text: "Poem (words between [ ])",
+                placeholder_poem: "e.g. Tomorrow, at dawn, at the hour when the [countryside] whitens...",
+                label_intro: "Intro Question",
+                placeholder_intro: "e.g. Name the planets of the solar system",
+                label_ordered: "Ordered List",
+                ordered_desc: "The order of answers is mandatory.",
+                label_answers: "Answers (one per line)",
+                placeholder_answers: "e.g.\nMercury\nVenus...",
+                download_btn_card: "Download .hquest",
+                by_author: "By",
+                empty_library: "No matching content found.",
+                error_supabase: "Supabase configuration missing.",
+                error_load: "Unable to load library.",
+                error_publish_disabled: "❌ Publication disabled (Supabase not configured).",
+                pub_loading: "⏳ Publishing...",
+                pub_success: "🎉 Content published successfully!",
+                alert_no_q: "Add at least one question.",
+                alert_no_poem: "Poem is empty.",
+                alert_no_ans: "Add at least one answer.",
+                cat_poetry: "Poetry",
+                cat_general: "General",
+                untitled: "Untitled",
+                anonymous: "Anonymous",
+                filter_authors: "Authors",
+                filter_categories: "Categories",
+                filter_all_dynamic: "All"
+            }
+        };
+
+        let currentLang = localStorage.getItem('hub_lang') || 'fr';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('hub_lang', lang);
+            applyTranslations();
+            updateDynamicFilters();
+            filterLibrary();
+            renderCreateForm();
+        }
+
+        function applyTranslations() {
+            const t = translations[currentLang];
+            
+            // Text content
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.innerText = t[key];
+            });
+
+            // Placeholders
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (t[key]) el.placeholder = t[key];
+            });
+
+            // Buttons state
+            const activeClass = 'bg-indigo-500 text-white';
+            const inactiveClass = 'text-slate-500 hover:text-white';
+            
+            const bFr = document.getElementById('lang-fr');
+            const bEn = document.getElementById('lang-en');
+            const bFrM = document.getElementById('lang-fr-mobile');
+            const bEnM = document.getElementById('lang-en-mobile');
+
+            if (bFr) bFr.className = `px-3 py-1 rounded-lg text-xs font-bold transition-all ${currentLang === 'fr' ? activeClass : inactiveClass}`;
+            if (bEn) bEn.className = `px-3 py-1 rounded-lg text-xs font-bold transition-all ${currentLang === 'en' ? activeClass : inactiveClass}`;
+            if (bFrM) bFrM.className = `px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${currentLang === 'fr' ? activeClass : inactiveClass}`;
+            if (bEnM) bEnM.className = `px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${currentLang === 'en' ? activeClass : inactiveClass}`;
+        }
+
+        // --- CONFIGURATION PUBLIQUE ---
+        const SUPABASE_URL = 'https://vnddzfjesqlpawydnoll.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable__guFBIt7-RSdQA9VfNSrfg_WC2zJ5Cx';
+        
+        // Initialisation sécurisée
+        let db = null;
+        try {
+            if (typeof supabase !== 'undefined' && SUPABASE_URL !== 'VOTRE_URL_ICI' && SUPABASE_URL.startsWith('http')) {
+                db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        } catch (e) {
+            console.error("Supabase init error:", e);
+        }
+
+        let libraryData = [];
+        let currentTab = 'library';
+        let currentCreateType = 'quiz';
+
+        async function fetchLibrary() {
+            if (!db) {
+                renderErrorGrid(translations[currentLang].error_supabase);
+                return;
+            }
+            try {
+                const { data, error } = await db
+                    .from('hquest_content')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+                libraryData = data || [];
+                updateDynamicFilters();
+                filterLibrary();
+            } catch (err) {
+                console.error("Erreur chargement bibliothèque:", err.message);
+                renderErrorGrid(translations[currentLang].error_load + " (" + err.message + ")");
+            }
+        }
+
+        function renderErrorGrid(message) {
+            const grid = document.getElementById('library-grid');
+            grid.innerHTML = `
+                <div class="col-span-full py-20 text-center">
+                    <p class="text-slate-500 font-bold mb-2">${message}</p>
+                    <p class="text-xs text-slate-600">${currentLang === 'fr' ? 'Vous pouvez toujours créer des packs localement.' : 'You can still create packs locally.'}</p>
+                </div>
+            `;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('section-library').classList.toggle('hidden', tab !== 'library');
+            document.getElementById('section-create').classList.toggle('hidden', tab !== 'create');
+            document.getElementById('btn-library').className = tab === 'library' ? 'pb-2 tab-active transition-all' : 'pb-2 hover:text-slate-300 transition-all';
+            document.getElementById('btn-create').className = tab === 'create' ? 'pb-2 tab-active transition-all' : 'pb-2 hover:text-slate-300 transition-all';
+            
+            if(tab === 'library') fetchLibrary();
+            else renderCreateForm();
+        }
+
+        function updateDynamicFilters() {
+            const t = translations[currentLang];
+            const type = document.getElementById('filter-type').value;
+            const container = document.getElementById('dynamic-filter-container');
+            container.innerHTML = '';
+
+            if (type === 'all') return;
+
+            const filterLabel = (type === 'poem') ? t.filter_authors : t.filter_categories;
+            const filterKey = (type === 'poem') ? 'author' : 'category';
+
+            const values = [...new Set(libraryData
+                .filter(item => item.type === type)
+                .map(item => item[filterKey])
+            )].sort();
+
+            if (values.length > 0) {
+                const select = document.createElement('select');
+                select.id = 'filter-dynamic';
+                select.className = 'bg-slate-900 border border-white/5 p-4 rounded-2xl outline-none text-sm font-semibold';
+                select.onchange = filterLibrary;
+                
+                let options = `<option value="all">${t.filter_all_dynamic} (${filterLabel})</option>`;
+                values.forEach(val => {
+                    options += `<option value="${val}">${val}</option>`;
+                });
+                
+                select.innerHTML = options;
+                container.appendChild(select);
+            }
+        }
+
+        function filterLibrary() {
+            const search = document.getElementById('search-bar').value.toLowerCase();
+            const type = document.getElementById('filter-type').value;
+            const lang = document.getElementById('filter-lang').value;
+            const dynamicFilter = document.getElementById('filter-dynamic')?.value || 'all';
+            
+            const filtered = libraryData.filter(item => {
+                const matchSearch = item.title.toLowerCase().includes(search) || item.author.toLowerCase().includes(search) || (item.category && item.category.toLowerCase().includes(search));
+                const matchType = type === 'all' || item.type === type;
+                const matchLang = lang === 'all' || item.lang === lang;
+                
+                let matchDynamic = true;
+                if (type !== 'all' && dynamicFilter !== 'all') {
+                    const filterKey = (type === 'poem') ? 'author' : 'category';
+                    matchDynamic = item[filterKey] === dynamicFilter;
+                }
+                
+                return matchSearch && matchType && matchLang && matchDynamic;
+            });
+
+            renderLibrary(filtered);
+        }
+
+        function renderLibrary(items) {
+            const t = translations[currentLang];
+            const grid = document.getElementById('library-grid');
+            grid.innerHTML = items.map(item => `
+                <div class="glass p-6 rounded-[2rem] space-y-4 border-white/5 hover:border-indigo-500/30 transition-all group">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-slate-800 rounded-full text-indigo-300 border border-white/5">
+                            ${item.type === 'quiz' ? '🧩 Quiz' : (item.type === 'poem' ? '📜 ' + (currentLang === 'fr' ? 'Poème' : 'Poem') : '📋 ' + (currentLang === 'fr' ? 'Liste' : 'List'))}
+                        </span>
+                        <span class="text-sm opacity-50">${item.lang === 'fr' ? '🇫🇷' : '🇺🇸'}</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">${item.category || ''}</span>
+                        </div>
+                        <h3 class="text-xl font-bold group-hover:text-indigo-400 transition-colors">${item.title}</h3>
+                        <p class="text-slate-500 text-sm font-medium">${t.by_author} ${item.author}</p>
+                    </div>
+                    <button onclick='downloadHQuest(${JSON.stringify(item.data)}, "${item.title.replace(/"/g, "&quot;")}")' class="w-full py-3 rounded-2xl bg-white/5 border border-white/5 text-sm font-bold hover:bg-white/10 transition-all">
+                        ${t.download_btn_card}
+                    </button>
+                </div>
+            `).join('') || `<p class="col-span-full text-center py-20 text-slate-600 font-bold">${t.empty_library}</p>`;
+        }
+
+        function setCreateType(type) {
+            currentCreateType = type;
+            ['quiz', 'poem', 'list'].forEach(t => {
+                const btn = document.getElementById(`cr-${t}`);
+                if(t === type) {
+                    btn.className = 'py-3 rounded-xl text-sm font-bold bg-indigo-500 text-white shadow-lg transition-all';
+                } else {
+                    btn.className = 'py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-white transition-all';
+                }
+            });
+            
+            // Masquer/Afficher categorie pour Poème
+            document.getElementById('div-category').style.display = type === 'poem' ? 'none' : 'block';
+            
+            renderCreateForm();
+        }
+
+        function renderCreateForm() {
+            const t = translations[currentLang];
+            const container = document.getElementById('dynamic-fields');
+            if (currentCreateType === 'quiz') {
+                container.innerHTML = `
+                    <div class="space-y-4">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">${t.label_questions}</label>
+                        <div id="quiz-rows" class="space-y-3">
+                            <div class="flex gap-2 quiz-row">
+                                <input type="text" placeholder="${t.placeholder_question}" class="flex-[3] bg-slate-900/50 border border-white/10 p-3 rounded-xl outline-none q-text">
+                                <input type="text" placeholder="${t.placeholder_answer}" class="flex-[2] bg-slate-900/50 border border-white/10 p-3 rounded-xl outline-none q-ans">
+                            </div>
+                        </div>
+                        <button onclick="addQuizRow()" class="text-indigo-400 text-xs font-bold hover:underline">${t.add_question}</button>
+                    </div>
+                `;
+            } else if (currentCreateType === 'poem') {
+                container.innerHTML = `
+                    <div class="space-y-2">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">${t.label_poem_text}</label>
+                        <textarea id="in-poem" rows="10" placeholder="${t.placeholder_poem}" class="w-full bg-slate-900/50 border border-white/10 p-4 rounded-2xl outline-none focus:border-indigo-500 transition"></textarea>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="space-y-2">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">${t.label_intro}</label>
+                            <input type="text" id="in-question" placeholder="${t.placeholder_intro}" class="w-full bg-slate-900/50 border border-white/10 p-4 rounded-2xl outline-none focus:border-indigo-500 transition">
+                        </div>
+                        <div class="flex items-center gap-3 p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                            <input type="checkbox" id="in-ordered" class="w-5 h-5 accent-indigo-500 rounded border-white/10 bg-slate-900">
+                            <div>
+                                <label for="in-ordered" class="text-sm font-bold text-white cursor-pointer">${t.label_ordered}</label>
+                                <p class="text-[10px] text-slate-400">${t.ordered_desc}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">${t.label_answers}</label>
+                            <textarea id="in-list" rows="8" placeholder="${t.placeholder_answers}" class="w-full bg-slate-900/50 border border-white/10 p-4 rounded-2xl outline-none focus:border-indigo-500 transition"></textarea>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function addQuizRow() {
+            const t = translations[currentLang];
+            const row = document.createElement('div');
+            row.className = "flex gap-2 quiz-row";
+            row.innerHTML = `
+                <input type="text" placeholder="${t.placeholder_question}" class="flex-[3] bg-slate-900/50 border border-white/10 p-3 rounded-xl outline-none q-text">
+                <input type="text" placeholder="${t.placeholder_answer}" class="flex-[2] bg-slate-900/50 border border-white/10 p-3 rounded-xl outline-none q-ans">
+            `;
+            document.getElementById('quiz-rows').appendChild(row);
+        }
+
+        function generateHQuest() {
+            const data = getFormData();
+            if (!data) return;
+            downloadHQuest(data.exportData, data.title);
+        }
+
+        async function publishToSupabase() {
+            const t = translations[currentLang];
+            if (!db) {
+                alert(t.error_publish_disabled + "\n\n" + (currentLang === 'fr' ? "Vous pouvez toujours télécharger le fichier localement." : "You can still download the file locally."));
+                return;
+            }
+            const data = getFormData();
+            if (!data) return;
+
+            const btn = document.getElementById('btn-publish');
+            const originalText = btn.innerText;
+            btn.innerText = t.pub_loading;
+            btn.disabled = true;
+
+            try {
+                const { error } = await db
+                    .from('hquest_content')
+                    .insert([{
+                        type: currentCreateType,
+                        title: data.title,
+                        author: data.author,
+                        category: data.category,
+                        lang: data.lang,
+                        data: data.exportData
+                    }]);
+
+                if (error) throw error;
+                
+                alert(t.pub_success);
+                switchTab('library');
+            } catch (err) {
+                console.error("Erreur publication:", err.message);
+                alert("❌ Erreur: " + err.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function getFormData() {
+            const t = translations[currentLang];
+            const title = document.getElementById('in-title').value || t.untitled;
+            const category = document.getElementById('in-category').value || (currentCreateType === 'poem' ? t.cat_poetry : t.cat_general);
+            const author = document.getElementById('in-author').value || t.anonymous;
+            const lang = document.getElementById('in-lang').value;
+            
+            let exportData = { exportDate: new Date().toISOString(), appVersion: "1.0", quizzes: [], poems: [], lists: [] };
+
+            if (currentCreateType === 'quiz') {
+                const questions = Array.from(document.querySelectorAll('.quiz-row')).map(row => ({
+                    question: row.querySelector('.q-text').value,
+                    correctAnswer: row.querySelector('.q-ans').value
+                })).filter(q => q.question && q.correctAnswer);
+                
+                if (questions.length === 0) { alert(t.alert_no_q); return null; }
+                exportData.quizzes = [{ theme: title, category: category, questions }];
+            } else if (currentCreateType === 'poem') {
+                const text = document.getElementById('in-poem').value;
+                if (!text) { alert(t.alert_no_poem); return null; }
+                exportData.poems = [{ 
+                    title: title, 
+                    author: author, 
+                    text: text, 
+                    date: new Date().getFullYear().toString(), 
+                    language: lang === 'fr' ? 'fr-FR' : 'en-US'
+                }];
+            } else {
+                const text = document.getElementById('in-list').value;
+                const question = document.getElementById('in-question').value || (currentLang === 'fr' ? "Trouvez les éléments de la liste" : "Find the elements in the list");
+                const ordered = document.getElementById('in-ordered').checked;
+                const answers = text.split('\n').filter(l => l.trim());
+                
+                if (answers.length === 0) { alert(t.alert_no_ans); return null; }
+                exportData.lists = [{ 
+                    theme: title, 
+                    category: category,
+                    question: question, 
+                    ordered: ordered,
+                    correctAnswers: answers
+                }];
+            }
+
+            return { title, author, category, lang, exportData };
+        }
+
+        function downloadHQuest(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename.replace(/\s+/g, '_')}.hquest`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Initialisation
+        applyTranslations();
+        fetchLibrary();
+    </script>
+</body>
+</html>
