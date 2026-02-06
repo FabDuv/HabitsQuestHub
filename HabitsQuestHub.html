@@ -337,6 +337,7 @@
         // --- CONFIGURATION PUBLIQUE ---
         const SUPABASE_URL = 'https://vnddzfjesqlpawydnoll.supabase.co';
         const SUPABASE_KEY = 'sb_publishable__guFBIt7-RSdQA9VfNSrfg_WC2zJ5Cx';
+        const APP_STORE_URL = 'https://apps.apple.com/app/habitsquest/id6756522474';
         
         // Initialisation sécurisée
         let db = null;
@@ -642,7 +643,24 @@
                     alert(currentLang === 'fr' ? "Sélection trop large pour l'ouverture directe. Utilisez 'Télécharger'." : "Selection too large for direct opening. Use 'Download' instead.");
                     return;
                 }
-                window.location.href = `habitsquest://import?data=${encodeURIComponent(b64)}`;
+                
+                // Tentative d'ouverture de l'app avec fallback vers l'App Store
+                const appUri = `habitsquest://import?data=${encodeURIComponent(b64)}`;
+                const start = Date.now();
+                
+                window.location.href = appUri;
+
+                // Si après 2.5 secondes on est toujours sur la page, on propose l'App Store
+                setTimeout(() => {
+                    if (Date.now() - start < 3000) {
+                        const msg = currentLang === 'fr' 
+                            ? "L'application ne semble pas être installée. Voulez-vous la découvrir sur l'App Store ?" 
+                            : "The app doesn't seem to be installed. Would you like to view it on the App Store?";
+                        if (confirm(msg)) {
+                            window.location.href = APP_STORE_URL;
+                        }
+                    }
+                }, 2500);
             } else {
                 downloadHQuest(mergedData, "HabitsQuest_Selection");
             }
