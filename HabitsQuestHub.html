@@ -806,25 +806,25 @@
                 const text = document.getElementById('in-poem').value;
                 if (!text) { alert(t.alert_no_poem); return null; }
                 exportData.poems = [{ 
+                    theme: category,
                     title: title, 
                     author: author, 
-                    text: text, 
-                    date: new Date().getFullYear().toString(), 
+                    lines: text.split('\n').filter(l => l.trim().length > 0),
                     language: lang === 'fr' ? 'fr-FR' : 'en-US'
                 }];
             } else {
                 const text = document.getElementById('in-list').value;
                 const question = document.getElementById('in-question').value || (currentLang === 'fr' ? "Trouvez les éléments de la liste" : "Find the elements in the list");
                 const ordered = document.getElementById('in-ordered').checked;
-                const answers = text.split('\n').filter(l => l.trim());
+                const answers = text.split('\n').filter(l => l.trim().length > 0);
                 
                 if (answers.length === 0) { alert(t.alert_no_ans); return null; }
                 exportData.lists = [{ 
                     theme: title, 
                     category: category,
                     question: question, 
-                    ordered: ordered,
-                    correctAnswers: answers
+                    isOrdered: ordered,
+                    answers: answers
                 }];
             }
 
