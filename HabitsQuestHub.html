@@ -88,6 +88,24 @@
             </div>
         </section>
 
+        <!-- Modal Détails Pack -->
+        <div id="modal-details" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeDetails()"></div>
+            <div class="relative glass max-w-2xl w-full max-h-[80vh] overflow-hidden rounded-[2.5rem] flex flex-col shadow-2xl">
+                <div class="p-8 border-b border-white/5 flex justify-between items-start">
+                    <div>
+                        <span id="det-type" class="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-indigo-500 rounded-full text-white mb-2 inline-block">TYPE</span>
+                        <h2 id="det-title" class="text-2xl font-black">Titre</h2>
+                        <p id="det-author" class="text-slate-400 font-medium">Par Auteur</p>
+                    </div>
+                    <button onclick="closeDetails()" class="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-400">✕</button>
+                </div>
+                <div id="det-content" class="p-8 overflow-y-auto space-y-4 text-slate-300">
+                    <!-- Contenu injecté -->
+                </div>
+            </div>
+        </div>
+
         <!-- Section Création -->
         <section id="section-create" class="hidden">
             <div class="max-w-3xl mx-auto glass p-8 md:p-12 rounded-[2.5rem] shadow-2xl shadow-indigo-500/5">
@@ -188,6 +206,7 @@
                 label_answers: "Réponses (une par ligne)",
                 placeholder_answers: "Ex:\nMercure\nVénus...",
                 download_btn_card: "Télécharger .hquest",
+                open_in_app: "🚀 Ouvrir dans l'App",
                 by_author: "Par",
                 empty_library: "Aucun contenu ne correspond.",
                 error_supabase: "Configuration Supabase manquante.",
@@ -204,7 +223,11 @@
                 anonymous: "Anonyme",
                 filter_authors: "Auteurs",
                 filter_categories: "Catégories",
-                filter_all_dynamic: "Tous"
+                filter_all_dynamic: "Tous",
+                btn_download_selected: "📥 Télécharger la sélection (%d)",
+                selection_empty: "Sélectionnez au moins un pack",
+                select_all: "Tout sélectionner",
+                deselect_all: "Tout désélectionner"
             },
             en: {
                 tagline: "Community creation space",
@@ -245,6 +268,7 @@
                 label_answers: "Answers (one per line)",
                 placeholder_answers: "e.g.\nMercury\nVenus...",
                 download_btn_card: "Download .hquest",
+                open_in_app: "🚀 Open in App",
                 by_author: "By",
                 empty_library: "No matching content found.",
                 error_supabase: "Supabase configuration missing.",
@@ -261,7 +285,11 @@
                 anonymous: "Anonymous",
                 filter_authors: "Authors",
                 filter_categories: "Categories",
-                filter_all_dynamic: "All"
+                filter_all_dynamic: "All",
+                btn_download_selected: "📥 Download Selection (%d)",
+                selection_empty: "Select at least one pack",
+                select_all: "Select All",
+                deselect_all: "Deselect All"
             }
         };
 
@@ -321,39 +349,10 @@
         }
 
         let libraryData = [];
+        let filteredItems = [];
+        let selectedIds = new Set();
         let currentTab = 'library';
         let currentCreateType = 'quiz';
-
-        async function fetchLibrary() {
-            if (!db) {
-                renderErrorGrid(translations[currentLang].error_supabase);
-                return;
-            }
-            try {
-                const { data, error } = await db
-                    .from('hquest_content')
-                    .select('*')
-                    .order('created_at', { ascending: false });
-
-                if (error) throw error;
-                libraryData = data || [];
-                updateDynamicFilters();
-                filterLibrary();
-            } catch (err) {
-                console.error("Erreur chargement bibliothèque:", err.message);
-                renderErrorGrid(translations[currentLang].error_load + " (" + err.message + ")");
-            }
-        }
-
-        function renderErrorGrid(message) {
-            const grid = document.getElementById('library-grid');
-            grid.innerHTML = `
-                <div class="col-span-full py-20 text-center">
-                    <p class="text-slate-500 font-bold mb-2">${message}</p>
-                    <p class="text-xs text-slate-600">${currentLang === 'fr' ? 'Vous pouvez toujours créer des packs localement.' : 'You can still create packs locally.'}</p>
-                </div>
-            `;
-        }
 
         function switchTab(tab) {
             currentTab = tab;
@@ -385,7 +384,7 @@
             if (values.length > 0) {
                 const select = document.createElement('select');
                 select.id = 'filter-dynamic';
-                select.className = 'bg-slate-900 border border-white/5 p-4 rounded-2xl outline-none text-sm font-semibold';
+                select.className = 'bg-slate-900 border border-white/5 p-3 md:p-4 rounded-xl md:rounded-2xl outline-none text-xs md:text-sm font-semibold whitespace-nowrap';
                 select.onchange = filterLibrary;
                 
                 let options = `<option value="all">${t.filter_all_dynamic} (${filterLabel})</option>`;
@@ -421,29 +420,232 @@
             renderLibrary(filtered);
         }
 
+        async function fetchLibrary() {
+            if (!db) {
+                renderErrorGrid(translations[currentLang].error_supabase);
+                return;
+            }
+            try {
+                const { data, error } = await db
+                    .from('hquest_content')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+                libraryData = data || [];
+                // On garde les sélections existantes si elles sont toujours dans les données
+                const validIds = new Set(libraryData.map(i => String(i.id)));
+                selectedIds = new Set([...selectedIds].filter(id => validIds.has(id)));
+                
+                updateDynamicFilters();
+                filterLibrary();
+            } catch (err) {
+                console.error("Erreur chargement bibliothèque:", err.message);
+                renderErrorGrid(translations[currentLang].error_load + " (" + err.message + ")");
+            }
+        }
+        
+        function renderErrorGrid(message) {
+            const grid = document.getElementById('library-grid');
+            grid.innerHTML = `
+                <div class="col-span-full py-20 text-center">
+                    <p class="text-slate-500 font-bold mb-2">${message}</p>
+                    <p class="text-xs text-slate-600">${currentLang === 'fr' ? 'Vous pouvez toujours créer des packs localement.' : 'You can still create packs locally.'}</p>
+                </div>
+            `;
+        }
+
         function renderLibrary(items) {
+            filteredItems = items; // Stocker pour "Tout sélectionner"
             const t = translations[currentLang];
             const grid = document.getElementById('library-grid');
-            grid.innerHTML = items.map(item => `
-                <div class="glass p-6 rounded-[2rem] space-y-4 border-white/5 hover:border-indigo-500/30 transition-all group">
-                    <div class="flex justify-between items-center">
-                        <span class="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-slate-800 rounded-full text-indigo-300 border border-white/5">
-                            ${item.type === 'quiz' ? '🧩 Quiz' : (item.type === 'poem' ? '📜 ' + (currentLang === 'fr' ? 'Poème' : 'Poem') : '📋 ' + (currentLang === 'fr' ? 'Liste' : 'List'))}
-                        </span>
-                        <span class="text-sm opacity-50">${item.lang === 'fr' ? '🇫🇷' : '🇺🇸'}</span>
+            
+            // Stats & Select All bar
+            const selectionBar = `
+                <div class="col-span-full flex justify-between items-center bg-slate-900/40 p-4 rounded-2xl border border-white/5 mb-2">
+                    <span class="text-xs font-bold text-slate-400">${items.length} packs trouvés</span>
+                    <div class="flex gap-4">
+                        <button onclick="selectAllFiltered()" class="text-xs font-bold text-indigo-400 hover:text-white transition-colors underline decoration-indigo-500/30 underline-offset-4">${t.select_all}</button>
+                        <button onclick="deselectAll()" class="text-xs font-bold text-slate-500 hover:text-white transition-colors underline decoration-slate-500/30 underline-offset-4">${t.deselect_all}</button>
                     </div>
-                    <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">${item.category || ''}</span>
-                        </div>
-                        <h3 class="text-xl font-bold group-hover:text-indigo-400 transition-colors">${item.title}</h3>
-                        <p class="text-slate-500 text-sm font-medium">${t.by_author} ${item.author}</p>
-                    </div>
-                    <button onclick='downloadHQuest(${JSON.stringify(item.data)}, "${item.title.replace(/"/g, "&quot;")}")' class="w-full py-3 rounded-2xl bg-white/5 border border-white/5 text-sm font-bold hover:bg-white/10 transition-all">
-                        ${t.download_btn_card}
-                    </button>
                 </div>
-            `).join('') || `<p class="col-span-full text-center py-20 text-slate-600 font-bold">${t.empty_library}</p>`;
+            `;
+
+            grid.innerHTML = (items.length > 0 ? selectionBar : '') + items.map(item => {
+                const isSelected = selectedIds.has(String(item.id));
+                return `
+                    <div class="library-card glass p-6 rounded-[2rem] space-y-4 border-white/5 hover:border-indigo-500/30 transition-all group relative cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 bg-indigo-500/5' : ''}" 
+                         onclick="toggleSelection('${item.id}')">
+                        <div class="absolute top-4 right-4 h-6 w-6 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'accent-gradient border-transparent text-white' : 'border-white/10 bg-slate-900/50 text-transparent'}">
+                            ✓
+                        </div>
+                        <div class="flex justify-between items-center pr-8">
+                            <span class="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-slate-800 rounded-full text-indigo-300 border border-white/5">
+                                ${item.type === 'quiz' ? '🧩 Quiz' : (item.type === 'poem' ? '📜 ' + (currentLang === 'fr' ? 'Poème' : 'Poem') : '📋 ' + (currentLang === 'fr' ? 'Liste' : 'List'))}
+                            </span>
+                            <span class="text-sm opacity-50">${item.lang === 'fr' ? '🇫🇷' : '🇺🇸'}</span>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">${item.category || ''}</span>
+                            </div>
+                            <h3 class="text-xl font-bold group-hover:text-indigo-400 transition-colors">${item.title}</h3>
+                            <p class="text-slate-500 text-sm font-medium">${t.by_author} ${item.author}</p>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <button onclick='event.stopPropagation(); showDetails("${item.id}")' class="w-full py-3 rounded-2xl bg-white/5 border border-white/5 text-xs font-bold hover:bg-white/10 transition-all">
+                                👀 Détails
+                            </button>
+                            <button onclick='event.stopPropagation(); downloadSingle("${item.id}")' class="w-full py-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all text-xs font-bold">
+                                💾 ${t.download_btn_card}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('') || `<p class="col-span-full text-center py-20 text-slate-600 font-bold">${t.empty_library}</p>`;
+
+            renderFloatingDownloadButton();
+        }
+
+        function toggleSelection(id) {
+            const strId = String(id);
+            if (selectedIds.has(strId)) {
+                selectedIds.delete(strId);
+            } else {
+                selectedIds.add(strId);
+            }
+            filterLibrary();
+        }
+
+        function selectAllFiltered() {
+            filteredItems.forEach(item => {
+                selectedIds.add(String(item.id));
+            });
+            filterLibrary();
+        }
+
+        function deselectAll() {
+            selectedIds.clear();
+            filterLibrary();
+        }
+
+        function showDetails(id) {
+            const item = libraryData.find(i => String(i.id) === String(id));
+            if (!item) return;
+
+            document.getElementById('det-type').innerText = item.type.toUpperCase();
+            document.getElementById('det-title').innerText = item.title;
+            document.getElementById('det-author').innerText = translations[currentLang].by_author + " " + item.author;
+            
+            let content = '';
+            if (item.type === 'quiz') {
+                const qs = item.data.quizzes?.[0]?.questions || [];
+                content = qs.map(q => `
+                    <div class="bg-white/5 p-4 rounded-2xl border border-white/5">
+                        <p class="text-xs text-indigo-400 font-bold uppercase mb-1">Question</p>
+                        <p class="font-bold mb-2">${q.question}</p>
+                        <p class="text-xs text-emerald-400 font-bold uppercase mb-1">Réponse</p>
+                        <p class="text-sm opacity-80">${q.correctAnswer}</p>
+                    </div>
+                `).join('');
+            } else if (item.type === 'poem') {
+                const text = item.data.poems?.[0]?.text || '';
+                content = `<div class="bg-white/5 p-6 rounded-2xl border border-white/5 italic whitespace-pre-wrap leading-relaxed">${text}</div>`;
+            } else if (item.type === 'list') {
+                const list = item.data.lists?.[0] || {};
+                content = `
+                    <div class="bg-white/5 p-4 rounded-2xl border border-white/5 mb-4">
+                        <p class="text-xs text-indigo-400 font-bold uppercase mb-1">Intro</p>
+                        <p class="font-bold">${list.question}</p>
+                    </div>
+                    <div class="space-y-2">
+                        ${(list.correctAnswers || []).map((a, i) => `
+                            <div class="flex items-center gap-3 text-sm opacity-80">
+                                <span class="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                                <span>${a}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            document.getElementById('det-content').innerHTML = content;
+            document.getElementById('modal-details').classList.remove('hidden');
+        }
+
+        function closeDetails() {
+            document.getElementById('modal-details').classList.add('hidden');
+        }
+
+        function renderFloatingDownloadButton() {
+            const t = translations[currentLang];
+            let bar = document.getElementById('floating-download-bar');
+            if (activeSelectionCount() === 0) {
+                if (bar) bar.remove();
+                return;
+            }
+
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.id = 'floating-download-bar';
+                bar.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex gap-2 animate-bounce-in';
+                document.body.appendChild(bar);
+            }
+
+            bar.innerHTML = `
+                <button onclick="downloadSelection(true)" class="bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 rounded-full text-white font-bold hover:bg-white/20 transition-all text-sm">
+                    ${t.open_in_app}
+                </button>
+                <button onclick="downloadSelection(false)" class="accent-gradient px-8 py-4 rounded-full text-white font-black shadow-2xl shadow-indigo-500/40 hover:scale-105 active:scale-95 transition-all text-sm">
+                    ${t.btn_download_selected.replace('%d', selectedIds.size)}
+                </button>
+            `;
+        }
+
+        function activeSelectionCount() {
+            return selectedIds.size;
+        }
+
+        function downloadSingle(id) {
+            const item = libraryData.find(i => String(i.id) === String(id));
+            if (item) downloadHQuest(item.data, item.title);
+        }
+
+        function downloadSelection(direct = false) {
+            const t = translations[currentLang];
+            if (selectedIds.size === 0) {
+                alert(t.selection_empty);
+                return;
+            }
+
+            const mergedData = {
+                exportDate: new Date().toISOString(),
+                appVersion: "1.0",
+                quizzes: [],
+                poems: [],
+                lists: []
+            };
+
+            selectedIds.forEach(id => {
+                const item = libraryData.find(i => String(i.id) === String(id));
+                if (item) {
+                    if (item.type === 'quiz') mergedData.quizzes.push(...(item.data.quizzes || []));
+                    if (item.type === 'poem') mergedData.poems.push(...(item.data.poems || []));
+                    if (item.type === 'list') mergedData.lists.push(...(item.data.lists || []));
+                }
+            });
+
+            if (direct) {
+                const json = JSON.stringify(mergedData);
+                const b64 = btoa(unescape(encodeURIComponent(json)));
+                if (b64.length > 8000) {
+                    alert(currentLang === 'fr' ? "Sélection trop large pour l'ouverture directe. Utilisez 'Télécharger'." : "Selection too large for direct opening. Use 'Download' instead.");
+                    return;
+                }
+                window.location.href = `habitsquest://import?data=${b64}`;
+            } else {
+                downloadHQuest(mergedData, "HabitsQuest_Selection");
+            }
         }
 
         function setCreateType(type) {
