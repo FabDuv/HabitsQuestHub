@@ -818,7 +818,9 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${filename.replace(/\s+/g, '_')}.hquest`;
+            // Clean filename and ensure exact .hquest extension
+            const safeName = filename.replace(/\s+/g, '_').replace(/\.hquest$/, '');
+            a.download = `${safeName}.hquest`;
             a.click();
             URL.revokeObjectURL(url);
         }
